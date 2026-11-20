@@ -315,8 +315,8 @@ func TestDatabaseURLEdgeCases(t *testing.T) {
 		},
 		{
 			name:    "valid postgres url",
-			env:     "postgres://user:pass@localhost:5432/sorovault",
-			wantURL: "postgres://user:pass@localhost:5432/sorovault",
+			env:     testDatabaseURL,
+			wantURL: testDatabaseURL,
 		},
 	}
 
