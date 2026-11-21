@@ -312,6 +312,19 @@ func (p *Postgres) UpdateSource(ctx context.Context, network, contractID, source
 	return nil
 }
 
+// SetName sets an existing contract's display name.
+func (p *Postgres) SetName(ctx context.Context, network, contractID, name string) error {
+	const q = `UPDATE contracts SET name = $3 WHERE network = $1 AND contract_id = $2`
+	tag, err := p.pool.Exec(ctx, q, network, contractID, name)
+	if err != nil {
+		return fmt.Errorf("store: naming contract %s: %w", contractID, err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("%w: contract %s on %s", ErrNotFound, contractID, network)
+	}
+	return nil
+}
+
 // SetOrigin records who created a contract and in which ledger.
 func (p *Postgres) SetOrigin(ctx context.Context, network, contractID, creator string, ledger uint32) error {
 	const q = `UPDATE contracts SET creator = $3, created_ledger = $4 WHERE network = $1 AND contract_id = $2`

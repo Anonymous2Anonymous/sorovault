@@ -740,13 +740,14 @@ through golang-migrate, and migrations are short-lived either way.
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` | `/api/contracts` | list contracts — `?q=`, `?function=`, `?type=`, `?network=`, `?limit=`, `?cursor=` (`?offset=` still works but is deprecated; a cursor walk sees contracts registered mid-walk exactly once, an offset page repeats and skips them) |
-| `POST` | `/api/contracts` | register a contract — `{"contract_id": "C…"}` |
+| `POST` | `/api/contracts` | register a contract — `{"contract_id": "C…", "name": "Example Token"}` (`name` optional) |
 | `POST` | `/api/contracts:batch` | register up to 20 contracts in one request — `{"contract_ids": ["C…", "C…"]}` |
 | `POST` | `/api/wasm/{hash}` | catalog uploaded code before a contract runs it |
 | `GET` | `/api/wasm/{hash}` | read a catalogued uploaded-code interface — `?network=` |
 | `GET` | `/api/contracts/{id}` | the decoded ABI — `?network=`, `?wasm_hash=`, `?download=1` |
 | `GET` | `/api/wasm/{hash}/contracts` | every contract running a given WASM — `?network=`, `?ever=`, `?limit=`, `?offset=` |
 | `GET` | `/api/contracts/{id}` | the decoded ABI — `?network=`, `?wasm_hash=` |
+| `PATCH` | `/api/contracts/{id}` | rename the contract — `{"name": "Example Token"}` |
 | `PUT` | `/api/contracts/{id}/source` | attach a `source_url` and optional `source_commit` |
 | `POST` | `/api/contracts/{id}/verify` | verify the publisher with a claim signed by the deploying account |
 | `GET` | `/api/keys` | public keys that verify interface signatures |
@@ -771,6 +772,20 @@ Worked examples for each route, with requests and abbreviated responses, are in
 `POST /api/contracts` returns **201** when the contract is new and **200** when
 it was already registered, so it is safe to retry. Passing `?wasm_hash=` to a
 read selects a superseded version instead of the current one.
+
+**Names.** A contract can carry an operator-chosen display name, which the
+browse UI shows and `?q=` searches. Set it when registering (`"name"` on
+`POST /api/contracts`, or `sorovault add <contract_id> --name "Example Token"`)
+or later with `PATCH /api/contracts/{id}`. Names are trimmed, at most 100
+characters, and may not contain control characters; anything else is a 400.
+Registering or refreshing without a name keeps the existing one, so a refresh
+never clears it:
+
+```console
+$ curl -X PATCH localhost:8080/api/contracts/CDZZ…4PAN \
+    -H 'Content-Type: application/json' -d '{"name": "zkVote"}'
+{"contract_id":"CDZZ…4PAN","network":"testnet","name":"zkVote",…}
+```
 
 `GET /api/contracts/{id}/functions/{fn}/example.json` returns an example
 argument list for a call: one deterministic placeholder of each argument's
@@ -912,7 +927,7 @@ beside it.
 ## CLI
 
 ```console
-sorovault add <contract_id>...      # fetch, decode and register (--from-file)
+sorovault add <contract_id>...      # fetch, decode and register (--from-file; --name for one contract)
 sorovault remove <contract_id>      # delete a contract and its versions (--yes)
 sorovault refresh <contract_id>...  # re-check for an upgraded interface (--from-file)
 sorovault refresh --all             # one sweep over every contract (--json)

@@ -46,6 +46,14 @@ const (
 
 type registerRequest struct {
 	ContractID string `json:"contract_id"`
+	// Name is an optional display name. Empty keeps the contract's
+	// existing name.
+	Name string `json:"name,omitempty"`
+}
+
+// renameRequest is the body of PATCH /api/contracts/{id}.
+type renameRequest struct {
+	Name *string `json:"name"`
 }
 
 type batchRegisterRequest struct {
