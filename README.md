@@ -1124,6 +1124,22 @@ Type mappings follow the Stellar CLI's own bindings (`u64`→`bigint`,
 the SDK unchanged. It requires `@stellar/stellar-sdk` 14 or later and
 `buffer`.
 
+**Events.** Each event the contract declares gets its own types, so an indexer
+need not write them by hand: `<Name>EventPrefix`, the prefix topics as a
+readonly tuple to filter on; `<Name>EventTopics`, the parameters published as
+topics; `<Name>EventData`, the payload shaped by the event's data format (an
+object for `map`, a labelled tuple for `vec`, the bare value for
+`single-value`); and `<Name>Event`, joining the two. The `Event` suffix keeps
+an event clear of a type with the same name, and if a type already holds one
+of those names the event's names take a trailing underscore together:
+
+```ts
+import { VotedEventPrefix, type VotedEvent } from "./zkvote";
+
+VotedEventPrefix;                                    // readonly ["voted"]
+const e: VotedEvent = { topics: { voter: "G…" }, data: { proposal_index: 0 } };
+```
+
 ### Runtime validation
 
 TypeScript types disappear at compile time, but a frontend taking user input
