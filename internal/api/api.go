@@ -968,16 +968,17 @@ func copyHeader(dst, src http.Header) {
 }
 
 // Middleware returns the stack the whole server runs behind: a request ID, a
-// panic guard, and a bound on how long any one request may take.
+// panic guard, and a bound on how long any one request may take. Each
+// observer is told about every finished request.
 //
 // There is deliberately no RealIP middleware: it trusts X-Forwarded-For from
 // any client, and nothing here needs the client address.
-func Middleware(log *slog.Logger) []func(http.Handler) http.Handler {
+func Middleware(log *slog.Logger, observers ...RequestObserver) []func(http.Handler) http.Handler {
 	return []func(http.Handler) http.Handler{
 		middleware.RequestID,
 		requestIDHeader,
 		middleware.Recoverer,
-		requestLogger(log),
+		requestLogger(log, observers...),
 	}
 }
 

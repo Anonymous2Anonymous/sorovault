@@ -314,6 +314,7 @@ back out of what it became. `--json` prints the same rows for scripts.
 | `RPC_URL` | `https://soroban-testnet.stellar.org` | Stellar RPC endpoint |
 | `NETWORK_PASSPHRASE` | `Test SDF Network ; September 2015` | the network you expect `RPC_URL` to serve |
 | `HTTP_ADDR` | `:8080` | listen address |
+| `METRICS_ADDR` | — (off) | separate `host:port` serving Prometheus metrics at `GET /metrics`; must differ from `HTTP_ADDR`. See [Metrics](#metrics) |
 | `TLS_CERT_FILE` | — | PEM certificate path; set with `TLS_KEY_FILE` to serve HTTPS (`--tls-cert` overrides) |
 | `TLS_KEY_FILE` | — | PEM private key path; set with `TLS_CERT_FILE` (`--tls-key` overrides) |
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error` |
@@ -356,6 +357,42 @@ A contract that fails to refresh — expired, or an RPC error — is logged and
 skipped, and the sweep carries on. One sweep runs at startup and then one per
 interval; a sweep in progress at shutdown is cancelled before the database is
 closed.
+
+### Metrics
+
+Set `METRICS_ADDR` (for example `127.0.0.1:9090`) and `sorovault serve` exposes
+Prometheus metrics at `GET /metrics` on that address — a listener of its own,
+so the registry's public port never serves operational detail, and off unless
+you ask for it. Binding to loopback or a private interface and letting
+Prometheus scrape it there is the intended setup. The address must differ from
+`HTTP_ADDR`, and a port already in use fails startup rather than leaving
+metrics silently absent.
+
+| Metric | Type | What it says |
+|---|---|---|
+| `sorovault_refresh_sweeps_total` | counter | scheduled sweeps that completed |
+| `sorovault_refresh_sweep_errors_total` | counter | scheduled sweeps that could not run (RPC or store down) |
+| `sorovault_refresh_contracts_checked_total` | counter | contracts sweeps attempted |
+| `sorovault_refresh_contracts_changed_total` | counter | contracts sweeps found upgraded |
+| `sorovault_refresh_contracts_failed_total` | counter | contracts sweeps could not refresh |
+| `sorovault_refresh_contracts_missing_total` | counter | contracts sweeps found gone from the network |
+| `sorovault_refresh_contracts_busy_total` | counter | contracts sweeps skipped at the concurrency limit |
+| `sorovault_refresh_last_success_timestamp_seconds` | gauge | Unix time the last sweep completed; `0` until one has |
+| `sorovault_contracts_registered{network}` | gauge | contracts in the registry, counted at scrape time; no series until a network has a contract |
+| `sorovault_http_requests_total{method,route,code}` | counter | requests by route pattern (`/api/contracts/{id}`, never the raw path) |
+| `sorovault_http_request_duration_seconds{method,route}` | histogram | request latency by route pattern |
+
+The standard `go_*` and `process_*` collectors are included. The refresh
+counters are fed from each scheduled sweep's summary — the one the log line
+reports — so they only move when `REFRESH_INTERVAL` is set; `refresh --all`
+from the CLI is a separate process and does not count. Routes no router matched
+are labelled `unmatched` and unusual methods `OTHER`, so a client cannot mint
+new series. A useful alert is a stale success timestamp:
+
+```yaml
+- alert: SoroVaultRefreshStalled
+  expr: time() - sorovault_refresh_last_success_timestamp_seconds > 3 * 6 * 3600  # 3 × REFRESH_INTERVAL=6h
+```
 
 ### Refreshing on upgrade events
 
