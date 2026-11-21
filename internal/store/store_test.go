@@ -239,6 +239,52 @@ func runStoreSuite(t *testing.T, newStore factory) {
 		assert.Equal(t, "https://github.com/example/repo", got.SourceURL, "refresh must preserve source metadata")
 	})
 
+	t.Run("names round-trip and survive a refresh", func(t *testing.T) {
+		s := newStore(t)
+		ctx := context.Background()
+
+		named := contract(idA, "testnet", "hash1")
+		named.Name = "Example Token"
+		require.NoError(t, s.Save(ctx, named, iface("balance")))
+
+		got, err := s.GetContract(ctx, "testnet", idA)
+		require.NoError(t, err)
+		assert.Equal(t, "Example Token", got.Name, "a name passed to Save is stored")
+
+		// A refresh saves with an empty name, which must keep the
+		// existing one rather than clear it — both for an unchanged
+		// contract and for an upgrade.
+		require.NoError(t, s.Save(ctx, contract(idA, "testnet", "hash1"), iface("balance")))
+		got, err = s.GetContract(ctx, "testnet", idA)
+		require.NoError(t, err)
+		assert.Equal(t, "Example Token", got.Name, "a refresh must not clear the name")
+
+		require.NoError(t, s.Save(ctx, contract(idA, "testnet", "hash2"), iface("balance")))
+		got, err = s.GetContract(ctx, "testnet", idA)
+		require.NoError(t, err)
+		assert.Equal(t, "Example Token", got.Name, "an upgrade must not clear the name")
+
+		require.NoError(t, s.SetName(ctx, "testnet", idA, "Renamed Token"))
+		got, err = s.GetContract(ctx, "testnet", idA)
+		require.NoError(t, err)
+		assert.Equal(t, "Renamed Token", got.Name, "SetName replaces the name")
+
+		page, err := s.ListContracts(ctx, store.ListFilter{Query: "renamed"})
+		require.NoError(t, err)
+		assert.Equal(t, []string{idA}, pageIDs(page), "search matches the name")
+		require.Len(t, page.Contracts, 1)
+		assert.Equal(t, "Renamed Token", page.Contracts[0].Name, "listings carry the name")
+
+		snapshot, err := s.Export(ctx)
+		require.NoError(t, err)
+		require.Len(t, snapshot.Contracts, 1)
+		assert.Equal(t, "Renamed Token", snapshot.Contracts[0].Contract.Name, "exports carry the name")
+
+		assert.ErrorIs(t, s.SetName(ctx, "testnet", idB, "Nobody"), store.ErrNotFound)
+		assert.ErrorIs(t, s.SetName(ctx, "public", idA, "Wrong network"), store.ErrNotFound,
+			"a name is set on one network only")
+	})
+
 	t.Run("a deprecation mark survives refresh and clears cleanly", func(t *testing.T) {
 		s := newStore(t)
 		ctx := context.Background()

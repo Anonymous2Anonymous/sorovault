@@ -268,6 +268,30 @@ func TestIndexListsContracts(t *testing.T) {
 	assert.Contains(t, body, `id="contract-rows"`)
 }
 
+// TestIndexShowsContractNames proves a named contract's name appears in
+// the listing — escaped, since an operator-set name is still free text —
+// and that searching for it finds the contract.
+func TestIndexShowsContractNames(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	h.register(t, idA)
+	h.register(t, idB)
+	_, err := h.reg.Rename(context.Background(), idA, "Example <b>Token</b>")
+	require.NoError(t, err)
+
+	resp, body := h.get(t, "/")
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Contains(t, body, `<div class="name">Example &lt;b&gt;Token&lt;/b&gt;</div>`)
+	assert.Equal(t, 1, strings.Count(body, `<div class="name">`),
+		"an unnamed contract renders no name")
+
+	resp, body = h.get(t, "/?q=example")
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Contains(t, body, idA)
+	assert.NotContains(t, body, idB)
+}
+
 func TestIndexNetworkSelectorFiltersResults(t *testing.T) {
 	t.Parallel()
 
